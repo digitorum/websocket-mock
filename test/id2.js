@@ -118,6 +118,12 @@
                         case "/getunrated2":
                             // Запросить рэйтер
                             result.push(this.makeGetUnratedCallResultMessage(data[1]));
+                            // Отобразить рэйтер
+                            result.push(this.makeRaterIncidentsMessage());
+                            break;
+                        case "/raterrate2":
+                            // Отправить оценку из рэйтера
+                            result.push(this.makeRaterRateCallResultMessage(data[1]));
                             break;
                         case "/senddata":
                             // Отправить некие данные
@@ -382,6 +388,30 @@
         Id2AbBaseMock.prototype.makeGetUnratedCallResultMessage = function (messageId) {
             return new Message([this.MESSAGE_TYPEID_CALL_RESULT, messageId, { "error": 0 }]);
         }
+
+        /**
+         * Эвент по которому отображается рэйтер.
+         * Отображается если event.data != 'nodata'
+         * 
+         * @returns {Message}
+         */
+        Id2AbBaseMock.prototype.makeRaterIncidentsMessage = function () {
+            return new Message([this.MESSAGE_TYPEID_EVENT, "incidents", {
+                "cdate": "2018-05-03 16:00:14",
+                "descr": "Описание рэйтера"
+            }], 100);
+        }
+
+        /**
+         * Мессадж получаемый в случае успешной отправки оценки.
+         * 
+         * @param messageId
+         * @returns {Message}
+         */
+        Id2AbBaseMock.prototype.makeRaterRateCallResultMessage = function (messageId) {
+            return new Message([this.MESSAGE_TYPEID_EVENT, messageId, "incidents", , { "error": 0 }]);
+        }
+        
 
         /**
          * Отправка данных.
