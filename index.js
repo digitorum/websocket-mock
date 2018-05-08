@@ -11,6 +11,13 @@
     this,
     function () {
 
+        /**
+         * Ссылка на нативный WebSocket
+         * 
+         * @type {WebSocket|MozWebSocket}
+         */
+        var NativeWebSocket = this.WebSocket || this.MozWebSocket;
+
         //#region MessageFactory
 
         /**
@@ -107,80 +114,6 @@
 
         //#endregion
 
-        //#region WebSocket
-
-        /**
-         * Вебсокет...
-         * Все входные параметры будут проигнорированы...
-         */
-        function WebSocket(url, protocols) {
-            var ws = this;
-
-            this.url = url;
-            this.readyState = this.CONNECTING;
-            if (protocols) {
-                this.protocol = protocols[0]; // Первый доступный протокол
-            }
-            setTimeout(function () {
-                WebSocketMock.open(ws);
-            });
-        }
-
-        // The connection is not yet open.
-        WebSocket.prototype.CONNECTING = 0;
-        // The connection is open and ready to communicate.
-        WebSocket.prototype.OPEN = 1;
-        // The connection is in the process of closing.
-        WebSocket.prototype.CLOSING = 2;
-        // The connection is closed or couldn't be opened.
-        WebSocket.prototype.CLOSED = 3;
-
-        // A string indicating the type of binary data being transmitted by the connection. 
-        // This should be either "blob" if DOM Blob objects are being used or "arraybuffer" if ArrayBuffer objects are being used.
-        WebSocket.prototype.binaryType = null;
-        // The number of bytes of data that have been queued using calls to send() but not yet transmitted to the network. 
-        // This value resets to zero once all queued data has been sent.
-        // This value does not reset to zero when the connection is closed; if you keep calling send(), this will continue to climb.Read only
-        WebSocket.prototype.bufferedAmount = null;
-        // The extensions selected by the server. 
-        // This is currently only the empty string or a list of extensions as negotiated by the connection.
-        WebSocket.prototype.extensions = null;
-
-        // An event listener to be called when the WebSocket connection's readyState changes to CLOSED. 
-        // The listener receives a CloseEvent named "close".
-        WebSocket.prototype.onclose = function () { };
-        // An event listener to be called when an error occurs. 
-        // This is a simple event named "error".
-        WebSocket.prototype.onerror = function () { };
-        // An event listener to be called when a message is received from the server. 
-        // The listener receives a MessageEvent named "message".
-        WebSocket.prototype.onmessage = function () { };
-        // An event listener to be called when the WebSocket connection's readyState changes to OPEN; this indicates that the connection is ready to send and receive data. 
-        // The event is a simple one with the name "open".
-        WebSocket.prototype.onopen = function () { };
-        // A string indicating the name of the sub-protocol the server selected; this will be one of the strings specified in the protocols parameter when creating the WebSocket object.
-        WebSocket.prototype.protocol = "";
-        // The current state of the connection; this is one of the Ready state constants. Read only.
-        WebSocket.prototype.readyState = null;
-        // he URL as resolved by the constructor. 
-        // This is always an absolute URL.Read only.
-        WebSocket.prototype.url = null;
-
-        // Closes the WebSocket connection or connection attempt, if any. If the connection is already CLOSED, this method does nothing.
-        WebSocket.prototype.close = function (code, reason) {
-            WebSocketMock.close(this, code, reason);
-        };
-        // Enqueues the specified data to be transmitted to the server over the WebSocket connection, increasing the value of bufferedAmount by the number of bytes needed to contain the data.
-        // If the data can't be sent (for example, because it needs to be buffered but the buffer is full), the socket is closed automatically.
-        WebSocket.prototype.send = function (data) {
-            WebSocketMock.send(this, data);
-        };
-
-        // ...
-        WebSocket.prototype.addEventListener = WebSocket.prototype.dispatchEvent = WebSocket.prototype.removeEventListener = function () { };
-
-        //#endregion
-
         //#region WebSocketMock
 
         /**
@@ -254,6 +187,20 @@
         }
 
         /**
+         * Получить ссылку на "мок"
+         * 
+         * @param {any} url
+         * @returns {object|null}
+         */
+        WebSocketMock.getMockSecure = function (url) {
+            try {
+                return WebSocketMock.getMock(url);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        /**
          * Записать ссылку на "мок"
          * 
          * @param {any} url
@@ -270,10 +217,10 @@
         /**
          * Получить замоканую реализация вэбсокета
          * 
-         * @returns {WebSocket}
+         * @returns {WS}
          */
         WebSocketMock.getWebSocketClass = function () {
-            return WebSocket;
+            return WS;
         }
 
         /**
@@ -284,6 +231,85 @@
         WebSocketMock.getBaseMock = function () {
             return Mock;
         }
+
+        //#endregion
+
+        //#region WS
+
+        /**
+         * Вебсокет...
+         */
+        function WS(url, protocols) {
+            // Если мок не определен, то создаем инстанс нативного вэбсокета.
+            if (!WebSocketMock.getMockSecure(url)) {
+                return new NativeWebSocket(url, protocols);
+            }
+
+            this.url = url;
+            this.readyState = this.CONNECTING;
+            if (protocols) {
+                this.protocol = protocols[0]; // Первый доступный протокол
+            }
+
+            (function (ws) {
+                setTimeout(function () {
+                    WebSocketMock.open(ws);
+                });
+            })(this);
+        }
+
+        // The connection is not yet open.
+        WS.prototype.CONNECTING = 0;
+        // The connection is open and ready to communicate.
+        WS.prototype.OPEN = 1;
+        // The connection is in the process of closing.
+        WS.prototype.CLOSING = 2;
+        // The connection is closed or couldn't be opened.
+        WS.prototype.CLOSED = 3;
+
+        // A string indicating the type of binary data being transmitted by the connection. 
+        // This should be either "blob" if DOM Blob objects are being used or "arraybuffer" if ArrayBuffer objects are being used.
+        WS.prototype.binaryType = null;
+        // The number of bytes of data that have been queued using calls to send() but not yet transmitted to the network. 
+        // This value resets to zero once all queued data has been sent.
+        // This value does not reset to zero when the connection is closed; if you keep calling send(), this will continue to climb.Read only
+        WS.prototype.bufferedAmount = null;
+        // The extensions selected by the server. 
+        // This is currently only the empty string or a list of extensions as negotiated by the connection.
+        WS.prototype.extensions = null;
+
+        // An event listener to be called when the WebSocket connection's readyState changes to CLOSED. 
+        // The listener receives a CloseEvent named "close".
+        WS.prototype.onclose = function () { };
+        // An event listener to be called when an error occurs. 
+        // This is a simple event named "error".
+        WS.prototype.onerror = function () { };
+        // An event listener to be called when a message is received from the server. 
+        // The listener receives a MessageEvent named "message".
+        WS.prototype.onmessage = function () { };
+        // An event listener to be called when the WebSocket connection's readyState changes to OPEN; this indicates that the connection is ready to send and receive data. 
+        // The event is a simple one with the name "open".
+        WS.prototype.onopen = function () { };
+        // A string indicating the name of the sub-protocol the server selected; this will be one of the strings specified in the protocols parameter when creating the WebSocket object.
+        WS.prototype.protocol = "";
+        // The current state of the connection; this is one of the Ready state constants. Read only.
+        WS.prototype.readyState = null;
+        // he URL as resolved by the constructor. 
+        // This is always an absolute URL.Read only.
+        WS.prototype.url = null;
+
+        // Closes the WebSocket connection or connection attempt, if any. If the connection is already CLOSED, this method does nothing.
+        WS.prototype.close = function (code, reason) {
+            WebSocketMock.close(this, code, reason);
+        };
+        // Enqueues the specified data to be transmitted to the server over the WebSocket connection, increasing the value of bufferedAmount by the number of bytes needed to contain the data.
+        // If the data can't be sent (for example, because it needs to be buffered but the buffer is full), the socket is closed automatically.
+        WS.prototype.send = function (data) {
+            WebSocketMock.send(this, data);
+        };
+
+        // ...
+        WS.prototype.addEventListener = WS.prototype.dispatchEvent = WS.prototype.removeEventListener = function () { };
 
         //#endregion
 
