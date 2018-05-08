@@ -5,20 +5,42 @@
         module.exports = factory();
     } else {
         root.WebSocketMock = factory();
-        root.MozWebSocket = root.WebSocket = WebSocketMock.getWebSocketClass();
+        root.MozWebSocket = root.WebSocket = WebSocketMock.getWebSocketClass(root.WebSocket || root.MozWebSocket);
     }
 })(
     this,
     function () {
 
-        /**
-         * Ссылка на нативный WebSocket
-         * 
-         * @type {WebSocket|MozWebSocket}
-         */
-        var NativeWebSocket = this.WebSocket || this.MozWebSocket;
-
         //#region MessageFactory
+
+        //#region Сообщене от сокет сервера
+
+        /**
+         * Эмуляцтя сообщения от сокет сервера
+         * 
+         * @param {any} data - данные
+         * @param {any} delay - зажержка "отправки"
+         */
+        function ResponseMessage(data, delay) {
+            this.data = data;
+            this.delay = delay || 0;
+        }
+
+        /**
+         * Обработать сообщение
+         * 
+         * @param {any} cb
+         */
+        ResponseMessage.prototype.perform = function (cb) {
+            (function (data, delay) {
+                setTimeout(function () {
+                    cb(data);
+                }, delay);
+            })(this.data, this.delay);
+
+        }
+
+        //#endregion
 
         /**
          * Фабрика для генерации собыитий
@@ -33,7 +55,7 @@
          * @param {any} data
          * @returns {object}
          */
-        MessageFactory.getMessage = function (event, name, data) {
+        MessageFactory.getEvent = function (event, name, data) {
             var result = null;
 
             if (typeof (event) !== "undefined") {
@@ -52,26 +74,41 @@
         }
 
         /**
+         * Получить инстанс события `message` (сырой), вернет не объект, а переданные данные.
+         * 
+         * @param {any} data
+         * @param {any} delay
+         * @returns {ResponseMessage}
+         */
+        MessageFactory.getRawMessage = function (data, delay) {
+            return new ResponseMessage(data, delay);
+        }
+
+        /**
          * Получить инстанс события `message`
          * 
          * @param {any} data
-         * @returns {object}
+         * @param {any} delay
+         * @returns {ResponseMessage}
          */
-        MessageFactory.getMessageEvent = function (data) {
-            return MessageFactory.getMessage(MessageEvent, "message", data);
+        MessageFactory.getMessage = function (data, delay) {
+            return new ResponseMessage(MessageFactory.getEvent(typeof (MessageEvent) !== "undefined" ? MessageEvent : undefined, "message", data), delay);
         }
 
         /**
          * Получить инстанс события `close`
          * 
          * @param {any} data
-         * @returns {object}
+         * @param {any} delay
+         * @returns {ResponseMessage}
          */
-        MessageFactory.getCloseEvent = function (data) {
-            return MessageFactory.getMessage(CloseEvent, "close", data);
+        MessageFactory.getCloseMessage = function (data, delay) {
+            return new ResponseMessage(MessageFactory.getEvent(typeof (CloseEvent) !== "undefined" ? CloseEvent : undefined, "close", data), delay);
         }
 
         //#endregion
+
+        //#region WebSocketMock
 
         //#region Mock
 
@@ -81,6 +118,23 @@
          * @constructor
          */
         function Mock() { };
+
+        /**
+         * Генератор сообщений
+         * 
+         * @type {MessageFactory}
+         */
+        Mock.prototype.factory = MessageFactory;
+
+        /**
+         * Сформировать ответы от сокет сервера
+         * 
+         * @param {any} data
+         * @returns {Array}
+         */
+        Mock.prototype.getResponse = function (data) {
+            return [];
+        }
 
         /**
          * Открытие с оединения
@@ -98,7 +152,9 @@
          * @param cb
          */
         Mock.prototype.send = function (data, cb) {
-            cb();
+            this.getResponse(data).forEach(function (message) {
+                message.perform(cb);
+            });
         }
 
         /**
@@ -129,6 +185,13 @@
         WebSocketMock.mocks = {};
 
         /**
+         * Ссылка на нативный WebSocket
+         * 
+         * @type {WebSocket|MozWebSocket|null}
+         */
+        WebSocketMock.NativeWebSocket = null;
+
+        /**
          * Действия выполняемые при "открытии" соединения
          * 
          * @param {any} ws
@@ -138,7 +201,7 @@
                 ws.readyState = ws.OPEN;
                 ws.onopen();
                 if (message) {
-                    ws.onmessage(MessageFactory.getMessageEvent(message));
+                    ws.onmessage(message);
                 }
             });
         }
@@ -155,7 +218,7 @@
                 if (ws.readyState !== ws.CLOSED) {
                     ws.readyState = ws.CLOSING;
                     ws.readyState = ws.CLOSED;
-                    ws.onclose && ws.onclose(MessageFactory.getCloseEvent(message));
+                    ws.onclose && ws.onclose(message);
                 }
             });
         }
@@ -168,7 +231,7 @@
         WebSocketMock.send = function (ws, data) {
             WebSocketMock.getMock(ws.url).send(data, function (message) {
                 if (message) {
-                    ws.onmessage(MessageFactory.getMessageEvent(message));
+                    ws.onmessage(message);
                 }
             });
         }
@@ -215,11 +278,13 @@
         }
 
         /**
-         * Получить замоканую реализация вэбсокета
+         * Получить замоканую реализация вэбсокета.
+         * При этом запоминаем нативную реализацию.
          * 
          * @returns {WS}
          */
-        WebSocketMock.getWebSocketClass = function () {
+        WebSocketMock.getWebSocketClass = function (native) {
+            WebSocketMock.NativeWebSocket = native;
             return WS;
         }
 
@@ -242,13 +307,15 @@
         function WS(url, protocols) {
             // Если мок не определен, то создаем инстанс нативного вэбсокета.
             if (!WebSocketMock.getMockSecure(url)) {
-                return new NativeWebSocket(url, protocols);
+                return new WebSocketMock.NativeWebSocket(url, protocols);
             }
 
             this.url = url;
             this.readyState = this.CONNECTING;
-            if (protocols) {
-                this.protocol = protocols[0]; // Первый доступный протокол
+            if (typeof (protocols) == "string") {
+                this.protocol = protocols;
+            } else if (protocols) {
+                this.protocol = protocols[0];
             }
 
             (function (ws) {
@@ -310,6 +377,8 @@
 
         // ...
         WS.prototype.addEventListener = WS.prototype.dispatchEvent = WS.prototype.removeEventListener = function () { };
+
+        //#endregion
 
         //#endregion
 

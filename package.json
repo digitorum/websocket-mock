@@ -4,16 +4,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha tests/*.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/digitorum/websocket-mock.git"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "digitorum",
+  "license": "Unlicense",
   "bugs": {
     "url": "https://github.com/digitorum/websocket-mock/issues"
   },
-  "homepage": "https://github.com/digitorum/websocket-mock#readme"
+  "homepage": "https://github.com/digitorum/websocket-mock#readme",
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "mocha": "^5.1.1",
+    "ws": "^5.1.1"
+  }
 }
